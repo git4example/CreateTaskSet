@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# Ref : https://w.amazon.com/bin/view/EC2/Project_Madison/Bug_Bash/PublicTaskSets/
 # set these values to resources that exist in your account:
 cluster_name=default
-service_name=TaskSetTesting10
-desired_count=100
+service_name=TaskSetTesting100
+desired_count=100   #if you are scaling to different number then please update calcuation to accomodate % calucation which should no more then 10 in on go.
 taskdef_family=Fargate
 launch_type=FARGATE
 vpc_id=vpc-2786cc40
@@ -14,7 +13,7 @@ scale_initial=10
 scale_increment=10
 scale_wait_sec=10 
 computedDesiredCount=0
-requestedDesiredCount=10
+requestedDesiredCount=10 #max allowed by ECS scheduler in one go
 pendingCount=0
 stabilityStatus=""
 steadyStatus="STEADY_STATE"
@@ -73,7 +72,7 @@ do
     # Update Task Set if previouse batch of 10 is already being executed i.e. (running + pending = computedDesired) and Yet to reach desired count number of service to reach 100%
     if [ "$total" = "$computedDesiredCount" -a "$computedDesiredCount" -lt  "$desired_count" ]; then
 
-        scale=`expr $computedDesiredCount + 10` #in here desired count is 100 so just keep adding 10, else calculate % here for scale
+        scale=`expr $computedDesiredCount + $requestedDesiredCount` #in here desired count is 100 so just keep adding 10, else calculate % here for scale
 
         #echo "aws ecs update-task-set --service $service_name --cluster default --task-set $task_set_id --scale value=$scale,unit=PERCENT"
         task_set_out="$(aws ecs update-task-set --service $service_name --cluster default --task-set $task_set_id --scale value=$scale,unit=PERCENT)"
@@ -117,13 +116,3 @@ done
 
 echo "Deploymnet Finished.." | ts
 
-
-#aws ecs create-task-set --service TaskSetTesting100 --cluster default --task-definition Fargate:1 --launch-type FARGATE --scale value=10,unit=PERCENT --network-configuration "awsvpcConfiguration={subnets=[subnet-0f2f0046,subnet-7c02301b,subnet-a00da0f8],securityGroups=[sg-11de8369],assignPublicIp=ENABLED}"
-
-#Keep updating scale value in the increament of 10 after about a min wait.
-
-
-# You can use Describe call to check stabilityStatus, computedDesiredCount, pendingCount and runningCount to make next Update call.
-#aws ecs describe-task-sets --service TaskSetTesting100 --cluster default --task-set $task_set_id
-
-#Wait for it to enter STEADY_STATE. This indicates that all tasks that should be running are running:

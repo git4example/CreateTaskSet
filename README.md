@@ -1,6 +1,14 @@
 # CreateTaskSet
 
-How to use CreateTaskSet : 
+# How to use this script 
+
+Use CreateTaskSet.sh script to update your environment details in top section of the script
+
+Currently scaling/deploying number of task beyond 10 task per CreateTaskSet is trottled,  this script POC to quickly deploy more number of tasks in quickest possible way.
+
+
+
+# How to use CreateTaskSet : 
 
 ```
 aws ecs create-service --cluster default --service-name TaskSetTesting --deployment-controller type=EXTERNAL --scheduling-strategy REPLICA --desired-count 2 
