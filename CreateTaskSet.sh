@@ -29,24 +29,22 @@ task_set_out="$(aws ecs create-task-set --cluster $cluster_name --service $servi
 
 #Extract required values
 task_set_id="$(echo $task_set_out | jq -r .taskSet.id)" 
-echo "task_set_id : " $task_set_id | ts
+echo "TaskSet Created ... task_set_id : " $task_set_id | ts
 
 while [ "$requestedDesiredCount" != "$computedDesiredCount" ]
 do
-    echo "wait 1 sec for request = compute count" | ts
     sleep 1
-
     task_set_out="$(aws ecs describe-task-sets --service $service_name --cluster default --task-set $task_set_id)"
     
     computedDesiredCount="$(echo $task_set_out | jq .taskSets[0].computedDesiredCount)" 
-    echo "computedDesiredCount :" $computedDesiredCount | ts    
+    echo "Waiting 1 sec for computedDesiredCount to catch up .. computedDesiredCount:" $computedDesiredCount " = requestedDesiredCount:" $requestedDesiredCount| ts    
 done 
 
 #Describe to get Stabilization 
 task_set_out="$(aws ecs describe-task-sets --service $service_name --cluster default --task-set $task_set_id)"
 #echo "task_set_out : " $task_set_out | ts
 
-stabilityStatus="$(echo $task_set_out | jq .taskSets[0].stabilityStatus)" 
+stabilityStatus="$(echo $task_set_out | jq -r .taskSets[0].stabilityStatus)" 
 #echo "stabilityStatus :" $stabilityStatus | ts
 
 computedDesiredCount="$(echo $task_set_out | jq .taskSets[0].computedDesiredCount)" 
@@ -58,16 +56,13 @@ pendingCount="$(echo $task_set_out | jq .taskSets[0].pendingCount)"
 runningCount="$(echo $task_set_out | jq .taskSets[0].runningCount)" 
 #echo "runningCount :" $runningCount | ts
 
-echo "stabilityStatus :" $stabilityStatus " computedDesiredCount :" $computedDesiredCount " pendingCount :" $pendingCount "runningCount :" $runningCount " - POST-CREATE" | ts
+echo "stabilityStatus :" $stabilityStatus " computedDesiredCount :" $computedDesiredCount " total :" $total " (pendingCount :" $pendingCount "runningCount :" $runningCount ") - POST-CREATE" | ts
 
 while [ "$stabilityStatus" != "STEADY_STATE"  ]
 do
-    echo "wait 1 sec " | ts
+    #To prevent other API throttling wait 1 sec - can use exponential backoff in production 
     sleep 1
-    
     total=`expr $runningCount + $pendingCount` 
-
-    echo "total : " $(($runningCount + $pendingCount))
 
     # Update Task Set if previouse batch of 10 is already being executed i.e. (running + pending = computedDesired) and Yet to reach desired count number of service to reach 100%
     if [ "$total" = "$computedDesiredCount" -a "$computedDesiredCount" -lt  "$desired_count" ]; then
@@ -77,21 +72,28 @@ do
         #echo "aws ecs update-task-set --service $service_name --cluster default --task-set $task_set_id --scale value=$scale,unit=PERCENT"
         task_set_out="$(aws ecs update-task-set --service $service_name --cluster default --task-set $task_set_id --scale value=$scale,unit=PERCENT)"
         #echo "task_set_out : " $task_set_out | ts
+        
+        computedDesiredCount="$(echo $task_set_out | jq .taskSet.computedDesiredCount)" 
+        
+        while [ "$scale" != "$computedDesiredCount" ]
+        do
+            sleep 1
+            task_set_out="$(aws ecs describe-task-sets --service $service_name --cluster default --task-set $task_set_id)"
+            
+            computedDesiredCount="$(echo $task_set_out | jq .taskSets[0].computedDesiredCount)" 
+            echo "Waiting 1 sec for computedDesiredCount to catch up .. computedDesiredCount:" $computedDesiredCount " = scale:" $scale| ts     
+        done 
 
         #Extract required values
-        stabilityStatus="$(echo $task_set_out | jq .taskSet.stabilityStatus)" 
-        #echo "stabilityStatus :" $stabilityStatus | ts
-
-        computedDesiredCount="$(echo $task_set_out | jq .taskSet.computedDesiredCount)" 
-        #echo "computedDesiredCount :" $computedDesiredCount | ts
-
-        pendingCount="$(echo $task_set_out | jq .taskSet.pendingCount)" 
-        #echo "pendingCount :" $pendingCount | ts
-
-        runningCount="$(echo $task_set_out | jq .taskSet.runningCount)" 
-        #echo "runningCount :" $runningCount | ts
-
-        echo "stabilityStatus :" $stabilityStatus " computedDesiredCount :" $computedDesiredCount " pendingCount :" $pendingCount "runningCount :" $runningCount " - UPDATE"| ts
+        stabilityStatus="$(echo $task_set_out | jq -r .taskSets[0].stabilityStatus)" 
+        
+        computedDesiredCount="$(echo $task_set_out | jq .taskSets[0].computedDesiredCount)" 
+        
+        pendingCount="$(echo $task_set_out | jq .taskSets[0].pendingCount)" 
+        
+        runningCount="$(echo $task_set_out | jq .taskSets[0].runningCount)" 
+        
+        echo "stabilityStatus :" $stabilityStatus " computedDesiredCount :" $computedDesiredCount " total :" $total " (pendingCount :" $pendingCount "runningCount :" $runningCount ") - UPDATE scale: " $scale | ts
 
     else
         task_set_out="$(aws ecs describe-task-sets --service $service_name --cluster default --task-set $task_set_id)"
@@ -99,18 +101,15 @@ do
 
 
         #Extract required values
-        stabilityStatus="$(echo $task_set_out | jq .taskSets[0].stabilityStatus)" 
-        #echo "stabilityStatus :" $stabilityStatus | ts
-
+        stabilityStatus="$(echo $task_set_out | jq -r .taskSets[0].stabilityStatus)" 
+        
         computedDesiredCount="$(echo $task_set_out | jq .taskSets[0].computedDesiredCount)" 
-        #echo "computedDesiredCount :" $computedDesiredCount | ts
-
+        
         pendingCount="$(echo $task_set_out | jq .taskSets[0].pendingCount)" 
-        #echo "pendingCount :" $pendingCount | ts
-
+        
         runningCount="$(echo $task_set_out | jq .taskSets[0].runningCount)" 
-        #echo "runningCount :" $runningCount | ts
-        echo "stabilityStatus :" $stabilityStatus " computedDesiredCount :" $computedDesiredCount " pendingCount :" $pendingCount "runningCount :" $runningCount " - DESCRIBE" | ts
+        
+        echo "stabilityStatus :" $stabilityStatus " computedDesiredCount :" $computedDesiredCount " total :" $total " (pendingCount :" $pendingCount "runningCount :" $runningCount ") - DESCRIBE" | ts
     fi
 done
 
