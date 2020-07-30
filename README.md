@@ -4,7 +4,7 @@
 
 Use CreateTaskSet.sh script to update your environment details in top section of the script
 
-Currently scaling/deploying number of task beyond 10 task per CreateTaskSet is trottled,  this script POC to quickly deploy more number of tasks in quickest possible way.
+Currently scaling/deploying number of task beyond 10 task per CreateTaskSet is throttled,  this script is POC to quickly deploy more number of tasks in quickest possible way.
 
 
 
