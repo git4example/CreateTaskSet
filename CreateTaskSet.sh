@@ -4,13 +4,14 @@
 cluster_name=default
 service_name=TaskSetTesting100
 desired_count=100   #if you are scaling to different number then please update calcuation to accomodate % calucation which should no more then 10 in on go.
+maximum_Percent=200
+minimum_HealthyPercent=100 
 taskdef_family=Fargate
+taskdef_family_version=1
 launch_type=FARGATE
 vpc_id=vpc-2786cc40
 vpc_subnets=subnet-0f2f0046,subnet-7c02301b,subnet-a00da0f8
 vpc_security_group=sg-11de8369
-scale_initial=10
-scale_increment=10
 scale_wait_sec=10 
 computedDesiredCount=0
 requestedDesiredCount=10 #max allowed by ECS scheduler in one go
@@ -20,10 +21,10 @@ steadyStatus="STEADY_STATE"
 
 echo "Deploymnet Started.." | ts
 #Create Service 
-aws ecs create-service --cluster default --service-name $service_name --desired-count $desired_count --deployment-controller type=EXTERNAL --scheduling-strategy REPLICA 
+aws ecs create-service --cluster default --service-name $service_name --desired-count $desired_count --deployment-controller type=EXTERNAL --scheduling-strategy REPLICA --deployment-configuration maximumPercent=$maximum_Percent,minimumHealthyPercent=$minimum_HealthyPercent 
 
 #Create TaskSet
-task_set_out="$(aws ecs create-task-set --cluster $cluster_name --service $service_name --external-id blue --task-definition $taskdef_family:1 --launch-type $launch_type --scale unit=PERCENT,value=$requestedDesiredCount --network-configuration "awsvpcConfiguration={subnets=[$vpc_subnets],securityGroups=[$vpc_security_group],assignPublicIp=ENABLED}")"
+task_set_out="$(aws ecs create-task-set --cluster $cluster_name --service $service_name --external-id blue --task-definition $taskdef_family:$taskdef_family_version --launch-type $launch_type --scale unit=PERCENT,value=$requestedDesiredCount --network-configuration "awsvpcConfiguration={subnets=[$vpc_subnets],securityGroups=[$vpc_security_group],assignPublicIp=ENABLED}")"
 
 #echo "task_set_out : " $task_set_out | ts
 
