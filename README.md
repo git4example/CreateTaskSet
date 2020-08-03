@@ -136,7 +136,6 @@ aws ecs create-task-set --cluster $cluster_name --service $service_name --task-d
 }
 ```
 
-
 ### Deploy mixed Tasks in single ECS service
 Now lets check what if I create yet another task set :
 
@@ -159,6 +158,7 @@ taskdef_family_version=3
 aws ecs create-task-set --cluster $cluster_name --service $service_name --task-definition $taskdef_family:$taskdef_family_version --launch-type $launch_type --scale unit=PERCENT,value=$desired_count --network-configuration "awsvpcConfiguration={subnets=[$vpc_subnets],securityGroups=[$vpc_security_group],assignPublicIp=ENABLED}")
 ```
 
+```json
 {
     "taskSet": {
         "id": "ecs-svc/2784411390646843134",
@@ -198,8 +198,7 @@ aws ecs create-task-set --cluster $cluster_name --service $service_name --task-d
         "tags": []
     }
 }
-
-
+```
 
 ### Blue/Green Deployment using EXTERNAL Deployment controller
 
