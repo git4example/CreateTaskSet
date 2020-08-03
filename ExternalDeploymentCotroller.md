@@ -9,38 +9,24 @@
 
 We are going to talk about External Deployment controller here, Lets see what External Deployment Controller is and what it allows us to do  :
 
-* As name suggest, it allows you to have full control over deployment process to ECS service (*T&C apply : Still ECS scheduler limits and throttling will apply)
-* Its completely on you how you want to orchestrate your deployments so you have to control it using APIs to control deployments to ECS Service using APIs (CreateTaskSet, UpdateTaskSet, UpdateServicePrimaryTaskSet, DeleteTaskSet, DeleteTask, DescribeServices and DescribeTaskSets).
+* As name suggest, it allows you to have full control over deployment process to ECS service (*T&C, check towards the end of this article)
+* Its completely on you how you want to orchestrate your deployments so you have to control it using APIs to control deployments to ECS Service using APIs (`CreateTaskSet, UpdateTaskSet, UpdateServicePrimaryTaskSet, DeleteTaskSet, DeleteTask, DescribeServices and DescribeTaskSets`).
 
-    * CreateTaskSet is used to deploy TaskSet(s) in the ECS Service
-    * UpdateServicePrimaryTaskSet API action modifies which task set in a service is the primary task set
-    * UpdateTaskSet API action updates only the scale % for a task set.
-    * UpdateService API action updates the desired count and health check grace period parameters for a service.
-    * Use CreateTaskSet API to create new task set, If the launch type, platform version, load balancer details, network configuration, or task definition need to be updated.
-    * DeleteTaskSet API action to delete TaskSet
-    * Few others which you will be using to create your own scheduler.. DeleteTask, DescribeServices and DescribeTaskSets
+    * `CreateTaskSet` is used to deploy TaskSet(s) in the ECS Service
+    * `UpdateServicePrimaryTaskSet` API action modifies which task set in a service is the primary task set
+    * `UpdateTaskSet` API action updates only the scale % for a task set.
+    * `UpdateService` API action updates the desired count and health check grace period parameters for a service.
+    * Use `CreateTaskSet` API to create new task set, If the launch type, platform version, load balancer details, network configuration, or task definition need to be updated.
+    * `DeleteTaskSet` API action to delete TaskSet
+    * Few others which you will be using to create your own scheduler.. `DeleteTask, DescribeServices and DescribeTaskSets`
 
 * You can have multiple task definitions running under same ECS service using different TaskSets and ECS service will maintain desired count for each TaskSets
-* This opens up possibility to create your own Deployment type, Write your own Deployment Scheduler (*T&C apply : piggy back on ECS scheduler)
+* This opens up possibility to create your own Deployment type, Write your own Deployment Scheduler (*T&C)
 * ECS Service Auto Scaling is not supported while using External Deployment controller
 * Only ALB and NLB are supported
-* You can not use DAEMON scheduling strategy
+* You can not use `DAEMON` scheduling strategy
 * Currently deploymentConfiguration is having no effect on CreateTaskSet/UpdateTaskSet
 
-
-T&C :
-
-Meaning when we use External Deployment controller, ECS service scheduler is trying to run all the requested tasks (computedDesiredCount) in one go, which may cause throttling exceptions depending on the desired count of ECS service and scale % you have requested for TaskSet. With these new APIs (CreateTaskSet, UpdateTaskSet, UpdateServicePrimaryTaskSet, DeleteTaskSet...etc) ECS service is allowing external scheduling and controlling of the scheduling behavior, however there are still some elements like ECS scheduler level throttling is under ECS service scheduler logic which may affect your deployment and its speed of deployment. For example, ECS Scheduler only allow 10 TPS (task per second) burst and 1 task per second beyond for normal ECS service, however in case of External Deployment controller, ECS scheduler will try to run all requested tasks in one go and it will remain stuck if requested tasks (computedDesiredCount) are more then 10.
-
-
-### Deployment time
-Based on my testing it looks like amount of time to complete deployment depends on few variable element as below (and may be more). However these are primary ones as I could point out as of now :
-
-1.  ECS scheduler allows 10 task in one go, so need to wait for one batch of 10 task to be scheduled then we can push next batch.
-2. There is delay between update API and scheduler calculate computedDesiredCount value. Once computedDesiredCount is calculated, than task scheduler will start rolling out new set of tasks based on new value.
-3. Deployment of tasks itself
-4. Task Creation and Stabilization period of each individual task itself, which includes container pull, run, network delay ..etc
-5. Health checks, if any applicable (not tested)
 
 
 ### Create Task Set
@@ -50,7 +36,7 @@ Step 1 : Create ECS service :
 ```
 cluster_name=default
 service_name=TaskSetTesting
-desired_count=2   #if you are scaling to different number then please update calcuation to accomodate % calucation which should no more then 10 in on go.
+desired_count=2   
 maximum_Percent=200
 minimum_HealthyPercent=100
 launch_type=FARGATE
@@ -81,7 +67,7 @@ Step 3 : Note, I am using different task definition and created new task set, EC
 ```bash
 cluster_name=default
 service_name=TaskSetTesting
-desired_count=2   #if you are scaling to different number then please update calcuation to accomodate % calucation which should no more then 10 in on go.
+desired_count=2   
 maximum_Percent=200
 minimum_HealthyPercent=100
 launch_type=FARGATE
@@ -104,7 +90,7 @@ Step 1 : Create ECS service :
 ```bash
 cluster_name=default
 service_name=BlueGreenTaskSetTesting
-desired_count=100   #if you are scaling to different number then please update calcuation to accomodate % calucation which should no more then 10 in on go.
+desired_count=100   
 maximum_Percent=200
 minimum_HealthyPercent=100
 launch_type=FARGATE
@@ -143,12 +129,12 @@ aws ecs describe-services --cluster $cluster_name --services $service_name
 ```
 
 
-Step 4 : Now when you create Green TaskSet to deploy new task definition version. Note that we are not passing --scale parameter here, we are just going to create Deployment. We will scale it as needed.
+Step 4 : Now when you create Green TaskSet to deploy new task definition version. Note that we are not passing `--scale` parameter here, we are just going to create Deployment. We will scale it as needed.
 
 ```bash
 cluster_name=default
 service_name=BlueGreenTaskSetTesting
-desired_count=100   #if you are scaling to different number then please update calcuation to accomodate % calucation which should no more then 10 in on go.
+desired_count=100   
 maximum_Percent=200
 minimum_HealthyPercent=100
 launch_type=FARGATE
@@ -180,7 +166,7 @@ Wait for this TaskSet to reach "STEADY_STATE".
 aws ecs describe-task-sets --service $service_name --cluster default --task-set $task_set_green
 ```
 
-Step 6 : Now make Green deployment as Primary TaskSet. This will make it the baseline for future tasksets by updating the default values on the service. You should see the task definition change in the top-level Service response:
+Step 6 : Now make Green deployment as Primary TaskSet. This will make it the baseline for future TaskSet by updating the default values on the service. You should see the task definition change in the top-level Service response:
 
 ```bash
 aws ecs update-service-primary-task-set --cluster $cluster_name --service $service_name --primary-task-set $task_set_green
@@ -192,6 +178,42 @@ Step 7 : Scale down Blue TaskSet. --force allows you to delete a task set even i
 
 ```bash
 aws ecs delete-task-set --cluster $cluster_name --service $service_name --task-set $task_set_blue --force
+```
+
+
+### T&C :
+External Deployment controller piggy back on ECS scheduler, Meaning when we use External Deployment controller, ECS service scheduler is trying to run all the requested tasks (computedDesiredCount) in one go, which may cause throttling exceptions depending on the desired count of ECS service and scale % you have requested for TaskSet. With these new APIs (CreateTaskSet, UpdateTaskSet, UpdateServicePrimaryTaskSet, DeleteTaskSet...etc) ECS service is allowing external scheduling and controlling of the scheduling behavior, however there are still some elements like ECS scheduler level throttling is under ECS service scheduler logic which may affect your deployment and its speed of deployment. For example, ECS Scheduler only allow 10 TPS (task per second) burst and 1 task per second beyond for normal ECS service, however in case of External Deployment controller, ECS scheduler will try to run all requested tasks in one go and it will remain stuck if requested tasks (computedDesiredCount) are more then 10.
+
+
+### Deployment time
+Based on my testing it looks like amount of time to complete deployment depends on few variable element as below (and may be more). However these are primary ones as I could point out as of now :
+
+1.  ECS scheduler allows 10 task in one go, so need to wait for one batch of 10 task to be scheduled then we can push next batch.
+2. There is delay between update API and scheduler calculate computedDesiredCount value. Once computedDesiredCount is calculated, than task scheduler will start rolling out new set of tasks based on new value.
+3. Deployment of tasks itself
+4. Task Creation and Stabilization period of each individual task itself, which includes container pull, run, network delay ..etc
+5. Health checks, if any applicable 
+
+### Throttling Exception 
+
+If you see following throttling exception, its mostly because you are trying to deploy more then 10 TPS (computedDesiredCount > 10), ECS service scheduler will try to deploy all at once in case of External Deployment and it will remain in this status forever until you take action to fix your deployment. 
+
+```
+(service <servicename>) operations are being throttled. Will try again later.
+```
+
+### Account Limits 
+
+If we reach Fargate task account limits then ECS Service Events reports different error message which is not inline with Fargate deployment :
+
+```
+service <servicename> was unable to place a task because no container instance met all of its requirements. Reason: You've reached the limit on the number of tasks you can run concurrently. For more information, see the Troubleshooting section.
+```
+
+Regular Fargate task limit message looks like like this :
+
+```
+service <servicename> was unable to place a task. Reason: You've reached the limit on the number of tasks you can run concurrently. For more information, see the Troubleshooting section.
 ```
 
 ### How to workaround 10 Task Per Second (10 TPS) ECS service scheduler limit
